@@ -52,17 +52,18 @@ int main(int argc, char *argv[])
     std::cout << "Schránka: " << args.mailbox << std::endl;
     std::cout << "Výstupní adresář: " << args.outdir << std::endl;
 
-    client.connect(args.server, args.port, args.certfile, args.certaddr);
-    std::cout << client.readResponse() << std::endl; // Read the server greeting
+    bool sucessfulConnection = client.connect(args.server, args.port, 5, args.certfile, args.certaddr);
+    if (!sucessfulConnection)
+    {
+        std::cerr << "Failed to connect to the server." << std::endl;
+        return 1;
+    }
+
     client.sendCommand("LOGIN " + parseLogin(args.authfile));
-    std::cout << client.readResponse() << std::endl; // Read the response to the login command
     client.sendCommand("SELECT " + args.mailbox);
-    std::cout << client.readResponse() << std::endl; // Read the response to the select command
     // Fetch one full email
-    client.sendCommand("FETCH 1 BODY[]");
-    std::cout << client.readResponse() << std::endl; // Read the response to the fetch command
+    client.sendCommand("FETCH * BODY[]");
     client.sendCommand("LOGOUT");
-    std::cout << client.readResponse() << std::endl; // Read the response to the logout command
     client.disconnect();
 
     return 0;
