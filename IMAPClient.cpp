@@ -146,8 +146,9 @@ public:
      * Read the response from the server afterwards.
      *
      * @param command The command to send
+     * @return The response from the server
      */
-    void sendCommand(const std::string &command)
+    std::string sendCommand(const std::string &command)
     {
         std::stringstream numbered_command;
         numbered_command << "A" << std::setw(3) << std::setfill('0') << command_counter++ << " " << command << "\r\n";
@@ -164,9 +165,9 @@ public:
         }
 
         std::cout << "Sent command: " << command << std::endl;
-        std::cout << readResponse(full_command.substr(0, 4)) << std::endl; // Read the response and check the tagged response
+        std::string response = readResponse(full_command.substr(0, 4)); // Read the response and check the tagged response
 
-        return;
+        return response; // Return the full response
     }
 
     /**

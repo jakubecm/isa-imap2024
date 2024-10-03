@@ -3,6 +3,8 @@
 #include <string>
 #include <map>
 #include <sstream>
+#include <fstream>
+#include <filesystem>
 
 class EmailMessage
 {
@@ -110,5 +112,34 @@ public:
     std::string getBody() const
     {
         return body;
+    }
+
+    // Method to save email to a file
+    void saveToFile(const std::string &directory, int messageNumber)
+    {
+        std::string fileName = directory + "/email_" + std::to_string(messageNumber) + ".eml";
+
+        // Create directory if it doesn't exist
+        std::filesystem::create_directories(directory);
+
+        std::ofstream outFile(fileName);
+        if (!outFile.is_open())
+        {
+            throw std::runtime_error("Unable to create file: " + fileName);
+        }
+
+        // Write headers
+        for (const auto &header : headers)
+        {
+            outFile << header.first << ": " << header.second << "\n";
+        }
+
+        // Write a newline to separate headers from body
+        outFile << "\n";
+
+        // Write body
+        outFile << body;
+
+        outFile.close();
     }
 };
