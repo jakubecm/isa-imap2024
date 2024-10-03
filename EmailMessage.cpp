@@ -12,6 +12,7 @@ private:
     std::multimap<std::string, std::string> headers;
     std::string body;
     bool inBody = false;
+    std::string UID;
 
     // RFC 5322 recommends 78 characters per line and allows up to 998 excluding CRLF
     static constexpr size_t MAX_LINE_LENGTH = 998;
@@ -115,9 +116,9 @@ public:
     }
 
     // Method to save email to a file
-    void saveToFile(const std::string &directory, int messageNumber)
+    void saveToFile(const std::string &directory, std::string messageNumber)
     {
-        std::string fileName = directory + "/email_" + std::to_string(messageNumber) + ".eml";
+        std::string fileName = directory + "/" + messageNumber;
 
         // Create directory if it doesn't exist
         std::filesystem::create_directories(directory);

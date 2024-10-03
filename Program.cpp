@@ -38,7 +38,6 @@ int main(int argc, char *argv[])
 {
     ArgumentParser parser(argc, argv);
     ArgumentParser::ParsedArgs args = parser.parse();
-
     IMAPClient client(args.use_tls);
 
     // Print out parsed arguments
@@ -64,11 +63,12 @@ int main(int argc, char *argv[])
     client.sendCommand("SELECT " + args.mailbox);
 
     // TODO: Set fetch command based on the arguments
-    std::string fetchResponse = client.sendCommand("FETCH 1:2 BODY[]");
+    std::string fetchResponse = client.sendCommand("UID FETCH 1:3 (UID BODY[])");
     std::cout << fetchResponse << std::endl;
 
     // Parse the fetched response into individual email messages
     std::vector<std::string> rawEmails;
+    std::vector<std::string> UIDs;
     std::string delimiter = "* "; // Delimiter for individual messages
     size_t pos = 0;
 
@@ -77,6 +77,16 @@ int main(int argc, char *argv[])
     {
         std::string section = fetchResponse.substr(0, pos);
         fetchResponse.erase(0, pos + delimiter.length());
+
+        // Extract the UID of the email
+        size_t uidStart = section.find("UID ");
+        if (uidStart != std::string::npos)
+        {
+            uidStart += 4; // Skip the "UID " part
+            size_t uidEnd = section.find(" ", uidStart);
+            std::string uid = section.substr(uidStart, uidEnd - uidStart);
+            UIDs.push_back(uid);
+        }
 
         // Check if the section contains an actual email body (look for {bodySize} format)
         size_t bodyStart = section.find("{");
@@ -119,7 +129,7 @@ int main(int argc, char *argv[])
             message.parse(rawEmails[i]);
 
             // Save email to file
-            message.saveToFile(args.outdir, i + 1);
+            message.saveToFile(args.outdir, UIDs[i]);
             ++downloadedCount;
         }
         catch (const std::exception &ex)
