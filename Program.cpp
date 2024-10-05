@@ -98,18 +98,6 @@ int main(int argc, char *argv[])
     ArgumentParser::ParsedArgs args = parser.parse();
     IMAPClient client(args.use_tls);
 
-    // Print parsed arguments
-    std::cout << "Server: " << args.server << std::endl;
-    std::cout << "Port: " << (args.port ? args.port : (args.use_tls ? 993 : 143)) << std::endl;
-    std::cout << "Použít TLS: " << (args.use_tls ? "Ano" : "Ne") << std::endl;
-    std::cout << "Certifikát: " << args.certfile << std::endl;
-    std::cout << "Adresář certifikátů: " << args.certaddr << std::endl;
-    std::cout << "Nové zprávy: " << (args.new_only ? "Ano" : "Ne") << std::endl;
-    std::cout << "Hlavičky: " << (args.headers_only ? "Ano" : "Ne") << std::endl;
-    std::cout << "Autentizační soubor: " << args.authfile << std::endl;
-    std::cout << "Schránka: " << args.mailbox << std::endl;
-    std::cout << "Výstupní adresář: " << args.outdir << std::endl;
-
     // Connect to the IMAP server
     if (!client.connect(args.server, args.port, 5, args.certfile, args.certaddr))
     {
@@ -154,7 +142,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        fetchCommand = args.headers_only ? "UID FETCH * (UID BODY.PEEK[HEADER])" : "UID FETCH * (UID BODY[])";
+        fetchCommand = args.headers_only ? "UID FETCH 1:* (UID BODY.PEEK[HEADER])" : "UID FETCH 1:* (UID BODY[])";
     }
 
     std::string fetchResponse = client.sendCommand(fetchCommand);
@@ -171,10 +159,9 @@ int main(int argc, char *argv[])
         {
             EmailMessage message;
             message.parseMessage(rawEmails[i]);
-            std::cout << "Raw email:" << rawEmails[i] << std::endl;
 
             // Save email to file
-            message.saveToFile(args.outdir, UIDs[i]);
+            message.saveToFile(args.outdir, UIDs[i], args.mailbox);
             ++downloadedCount;
         }
         catch (const std::exception &ex)

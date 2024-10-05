@@ -30,6 +30,10 @@ public:
         // Separate headers and body
         while (std::getline(emailStream, line))
         {
+            if (line.length() > MAX_LINE_LENGTH)
+            {
+                throw std::runtime_error("Detected a line too long.");
+            }
             // Remove trailing \r if it exists
             if (!line.empty() && line.back() == '\r')
             {
@@ -111,9 +115,9 @@ public:
     }
 
     // Method to save email to a file
-    void saveToFile(const std::string &directory, const std::string &messageNumber)
+    void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName)
     {
-        std::string fileName = directory + "/" + messageNumber;
+        std::string fileName = directory + "/" + mailboxName + "_" + messageUid + ".eml";
 
         // Create directory if it doesn't exist
         std::filesystem::create_directories(directory);
