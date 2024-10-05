@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <sstream>
 
 std::string parseLogin(const std::string &authfile)
 {
@@ -31,7 +32,64 @@ std::string parseLogin(const std::string &authfile)
         file.close();
     }
 
-    return username + " " + password; // Added space between username and password for LOGIN command
+    return username + " " + password;
+}
+
+void parseIMAPResponse(const std::string &fetchResponse, std::vector<std::string> &rawEmails, std::vector<std::string> &UIDs)
+{
+    std::istringstream stream(fetchResponse);
+    std::string line;
+    std::string currentEmail;
+    bool readingBody = false;
+    int expectedBodySize = 0;
+    std::string currentUID;
+
+    while (std::getline(stream, line))
+    {
+        // Check for the start of a new FETCH response
+        if (line.find("FETCH (UID ") != std::string::npos)
+        {
+            // Store the previous email if we were reading a body
+            if (!currentEmail.empty() && readingBody && expectedBodySize == 0)
+            {
+                rawEmails.push_back(currentEmail);
+                currentEmail.clear();
+            }
+
+            // Find and extract the UID
+            size_t uidStart = line.find("UID ") + 4;
+            size_t uidEnd = line.find(" ", uidStart);
+            currentUID = line.substr(uidStart, uidEnd - uidStart);
+            UIDs.push_back(currentUID);
+
+            // Check for the body size
+            size_t bodyStart = line.find("{");
+            if (bodyStart != std::string::npos)
+            {
+                size_t bodyEnd = line.find("}", bodyStart);
+                expectedBodySize = std::stoi(line.substr(bodyStart + 1, bodyEnd - bodyStart - 1));
+                readingBody = true;
+            }
+        }
+        else if (readingBody)
+        {
+            currentEmail += line + "\n";
+            expectedBodySize -= line.length() + 1;
+
+            if (expectedBodySize <= 0)
+            {
+                rawEmails.push_back(currentEmail);
+                currentEmail.clear();
+                readingBody = false;
+            }
+        }
+    }
+
+    // Handle the last email in case it was not added
+    if (!currentEmail.empty() && readingBody && expectedBodySize == 0)
+    {
+        rawEmails.push_back(currentEmail);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -40,7 +98,7 @@ int main(int argc, char *argv[])
     ArgumentParser::ParsedArgs args = parser.parse();
     IMAPClient client(args.use_tls);
 
-    // Print out parsed arguments
+    // Print parsed arguments
     std::cout << "Server: " << args.server << std::endl;
     std::cout << "Port: " << (args.port ? args.port : (args.use_tls ? 993 : 143)) << std::endl;
     std::cout << "Použít TLS: " << (args.use_tls ? "Ano" : "Ne") << std::endl;
@@ -52,8 +110,8 @@ int main(int argc, char *argv[])
     std::cout << "Schránka: " << args.mailbox << std::endl;
     std::cout << "Výstupní adresář: " << args.outdir << std::endl;
 
-    bool successfulConnection = client.connect(args.server, args.port, 5, args.certfile, args.certaddr);
-    if (!successfulConnection)
+    // Connect to the IMAP server
+    if (!client.connect(args.server, args.port, 5, args.certfile, args.certaddr))
     {
         std::cerr << "Failed to connect to the server." << std::endl;
         return 1;
@@ -62,62 +120,48 @@ int main(int argc, char *argv[])
     client.sendCommand("LOGIN " + parseLogin(args.authfile));
     client.sendCommand("SELECT " + args.mailbox);
 
-    // TODO: Set fetch command based on the arguments
-    std::string fetchResponse = client.sendCommand("UID FETCH 1:3 (UID BODY[])");
-    std::cout << fetchResponse << std::endl;
+    std::string fetchCommand;
+    if (args.new_only)
+    {
+        std::string searchResponse = client.sendCommand("UID SEARCH UNSEEN");
+        std::vector<std::string> unseenUIDs;
+        std::istringstream iss(searchResponse);
+        std::string word;
 
-    // Parse the fetched response into individual email messages
+        while (iss >> word)
+        {
+            if (word != "UID" && word != "SEARCH" && word != "OK" && word != "BYE")
+            {
+                unseenUIDs.push_back(word);
+            }
+        }
+
+        if (unseenUIDs.empty())
+        {
+            std::cout << "No unread messages found." << std::endl;
+            client.sendCommand("LOGOUT");
+            client.disconnect();
+            return 0;
+        }
+
+        std::string uidList = unseenUIDs[0];
+        for (size_t i = 1; i < unseenUIDs.size(); ++i)
+        {
+            uidList += "," + unseenUIDs[i];
+        }
+
+        fetchCommand = args.headers_only ? "UID FETCH " + uidList + " (UID BODY.PEEK[HEADER])" : "UID FETCH " + uidList + " (UID BODY[])";
+    }
+    else
+    {
+        fetchCommand = args.headers_only ? "UID FETCH * (UID BODY.PEEK[HEADER])" : "UID FETCH * (UID BODY[])";
+    }
+
+    std::string fetchResponse = client.sendCommand(fetchCommand);
+
     std::vector<std::string> rawEmails;
     std::vector<std::string> UIDs;
-    std::string delimiter = "* "; // Delimiter for individual messages
-    size_t pos = 0;
-
-    // Split the response into sections for each email
-    while ((pos = fetchResponse.find(delimiter)) != std::string::npos)
-    {
-        std::string section = fetchResponse.substr(0, pos);
-        fetchResponse.erase(0, pos + delimiter.length());
-
-        // Extract the UID of the email
-        size_t uidStart = section.find("UID ");
-        if (uidStart != std::string::npos)
-        {
-            uidStart += 4; // Skip the "UID " part
-            size_t uidEnd = section.find(" ", uidStart);
-            std::string uid = section.substr(uidStart, uidEnd - uidStart);
-            UIDs.push_back(uid);
-        }
-
-        // Check if the section contains an actual email body (look for {bodySize} format)
-        size_t bodyStart = section.find("{");
-        if (bodyStart != std::string::npos)
-        {
-            // Extract the body of the email based on the size given by the server
-            size_t bodyEnd = section.find("}", bodyStart);
-            if (bodyEnd != std::string::npos)
-            {
-                int bodySize = std::stoi(section.substr(bodyStart + 1, bodyEnd - bodyStart - 1));
-                std::string emailBody = section.substr(bodyEnd + 1, bodySize);
-                rawEmails.push_back(emailBody); // Save the parsed email body
-            }
-        }
-    }
-
-    // Ensure the last part of the response is processed (if any)
-    if (!fetchResponse.empty())
-    {
-        size_t bodyStart = fetchResponse.find("{");
-        if (bodyStart != std::string::npos)
-        {
-            size_t bodyEnd = fetchResponse.find("}", bodyStart);
-            if (bodyEnd != std::string::npos)
-            {
-                int bodySize = std::stoi(fetchResponse.substr(bodyStart + 1, bodyEnd - bodyStart - 1));
-                std::string emailBody = fetchResponse.substr(bodyEnd + 1, bodySize);
-                rawEmails.push_back(emailBody);
-            }
-        }
-    }
+    parseIMAPResponse(fetchResponse, rawEmails, UIDs);
 
     // Process and save emails
     int downloadedCount = 0;
@@ -126,7 +170,8 @@ int main(int argc, char *argv[])
         try
         {
             EmailMessage message;
-            message.parse(rawEmails[i]);
+            message.parseMessage(rawEmails[i]);
+            std::cout << "Raw email:" << rawEmails[i] << std::endl;
 
             // Save email to file
             message.saveToFile(args.outdir, UIDs[i]);
@@ -138,7 +183,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Print the number of downloaded messages
     std::cout << "Number of downloaded messages: " << downloadedCount << std::endl;
 
     // Logout and disconnect

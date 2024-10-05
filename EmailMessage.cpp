@@ -11,7 +11,6 @@ class EmailMessage
 private:
     std::multimap<std::string, std::string> headers;
     std::string body;
-    bool inBody = false;
     std::string UID;
 
     // RFC 5322 recommends 78 characters per line and allows up to 998 excluding CRLF
@@ -20,103 +19,99 @@ private:
 public:
     EmailMessage() {}
 
-    /**
-     * @brief Parse a string containing an email message into headers and body
-     *
-     * @param message The string containing the email message
-     */
-    void parse(const std::string &rawMessage)
+    void parseMessage(const std::string &rawEmail)
     {
-        std::istringstream unparsedMessage(rawMessage);
+        std::istringstream emailStream(rawEmail);
         std::string line;
-        std::string currentHeaderField;
+        std::string currentHeaderName;
         std::string currentHeaderValue;
+        bool inHeaders = true;
 
-        while (std::getline(unparsedMessage, line))
+        // Separate headers and body
+        while (std::getline(emailStream, line))
         {
-            if (line.length() > MAX_LINE_LENGTH)
+            // Remove trailing \r if it exists
+            if (!line.empty() && line.back() == '\r')
             {
-                throw std::runtime_error("Line exceeds 998 characters, which is violating RFC 5322");
+                line.pop_back();
             }
 
-            if (line == "\r" || line.empty())
+            // End of headers section is marked by an empty line
+            if (inHeaders && line.empty())
             {
-                // Empty line, body starts
-                inBody = true;
+                inHeaders = false;
                 continue;
             }
 
-            if (inBody)
+            if (inHeaders)
             {
-                body += line + "\n";
-            }
-            else
-            {
-                // Handling headers
-                if (line[0] == ' ' || line[0] == '\t')
+                // Handle header continuation (folding)
+                if (!currentHeaderName.empty() && (line[0] == ' ' || line[0] == '\t'))
                 {
-                    // Continuation of the previous header (folded header)
-                    if (currentHeaderField.empty())
-                    {
-                        throw std::runtime_error("Found a continuation line without a preceding header.");
-                    }
-                    currentHeaderValue += " " + line; // Append the continuation to the header value
+                    // Append continued header value (folding)
+                    currentHeaderValue += " " + line.substr(1); // remove leading space/tab
                 }
                 else
                 {
-                    // A new header field is encountered
-                    if (!currentHeaderField.empty())
+                    // Save the previous header and its value before processing a new header
+                    if (!currentHeaderName.empty())
                     {
-                        // Store the previous header before starting a new one
-                        headers.insert({currentHeaderField, currentHeaderValue});
+                        headers.emplace(currentHeaderName, currentHeaderValue);
                     }
 
+                    // Parse new header
                     size_t colonPos = line.find(':');
-                    if (colonPos == std::string::npos)
+                    if (colonPos != std::string::npos)
                     {
-                        throw std::runtime_error("Invalid header format: missing ':' separator.");
-                    }
-
-                    currentHeaderField = line.substr(0, colonPos);
-                    currentHeaderValue = line.substr(colonPos + 1);
-
-                    // Trim leading spaces in the header value
-                    size_t start = currentHeaderValue.find_first_not_of(" \t");
-                    if (start != std::string::npos)
-                    {
-                        currentHeaderValue = currentHeaderValue.substr(start);
+                        currentHeaderName = line.substr(0, colonPos);
+                        currentHeaderValue = line.substr(colonPos + 1);
+                        // Trim leading whitespace in the header value
+                        currentHeaderValue.erase(0, currentHeaderValue.find_first_not_of(" \t"));
                     }
                     else
                     {
-                        currentHeaderValue.clear(); // Empty value if there's nothing after the colon
+                        // Handle invalid header without a colon (just skip it)
+                        currentHeaderName.clear();
+                        currentHeaderValue.clear();
                     }
                 }
             }
+            else
+            {
+                body += line + "\n";
+            }
         }
 
-        if (!currentHeaderField.empty())
+        // Store the last header
+        if (!currentHeaderName.empty())
         {
-            headers.insert({currentHeaderField, currentHeaderValue});
+            headers.emplace(currentHeaderName, currentHeaderValue);
         }
     }
 
-    // Method to get all headers (for debugging or logging)
+    // Getter for headers and body for debugging
+    const std::multimap<std::string, std::string> &getHeaders() const { return headers; }
+    const std::string &getBody() const { return body; }
+
+    // Method to print all headers (for debugging)
     void printHeaders() const
     {
-        for (const auto &header : headers)
+        if (headers.empty())
         {
-            std::cout << header.first << ": " << header.second << std::endl;
+            std::cout << "No headers found!" << std::endl;
         }
-    }
-
-    // Method to get the body of the email
-    std::string getBody() const
-    {
-        return body;
+        else
+        {
+            std::cout << "Printing " << headers.size() << " headers:" << std::endl;
+            for (const auto &header : headers)
+            {
+                std::cout << header.first << ": " << header.second << std::endl;
+            }
+        }
     }
 
     // Method to save email to a file
-    void saveToFile(const std::string &directory, std::string messageNumber)
+    void saveToFile(const std::string &directory, const std::string &messageNumber)
     {
         std::string fileName = directory + "/" + messageNumber;
 
