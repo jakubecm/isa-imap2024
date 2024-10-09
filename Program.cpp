@@ -2,38 +2,13 @@
 #include "ArgumentParser.h"
 #include "IMAPClient.cpp"
 #include "EmailMessage.cpp"
+#include "Helpers.cpp"
 #include <unistd.h>
 #include <cstring>
 #include <fstream>
 #include <string>
 #include <vector>
 #include <sstream>
-
-std::string parseLogin(const std::string &authfile)
-{
-    std::ifstream file(authfile);
-    std::string line;
-    std::string username;
-    std::string password;
-
-    if (file.is_open())
-    {
-        while (std::getline(file, line))
-        {
-            if (line.find("username") != std::string::npos)
-            {
-                username = line.substr(line.find("=") + 1);
-            }
-            else if (line.find("password") != std::string::npos)
-            {
-                password = line.substr(line.find("=") + 1);
-            }
-        }
-        file.close();
-    }
-
-    return username + " " + password;
-}
 
 void parseIMAPResponse(const std::string &fetchResponse, std::vector<std::string> &rawEmails, std::vector<std::string> &UIDs)
 {
@@ -46,6 +21,11 @@ void parseIMAPResponse(const std::string &fetchResponse, std::vector<std::string
 
     while (std::getline(stream, line))
     {
+        // Skip untagged responses like EXISTS, RECENT, EXPUNGE
+        if (line.find("* ") == 0 && (line.find("EXISTS") != std::string::npos || line.find("RECENT") != std::string::npos || line.find("EXPUNGE") != std::string::npos))
+        {
+            continue;
+        }
         // Check for the start of a new FETCH response
         if (line.find("FETCH (UID ") != std::string::npos)
         {
@@ -105,8 +85,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    client.sendCommand("LOGIN " + parseLogin(args.authfile));
-    client.sendCommand("SELECT " + args.mailbox);
+    client.sendCommand("LOGIN " + Helpers::parseLogin(args.authfile));
+    std::string selectResponse = client.sendCommand("SELECT " + args.mailbox);
 
     std::string fetchCommand;
     if (args.new_only)
@@ -142,7 +122,18 @@ int main(int argc, char *argv[])
     }
     else
     {
-        fetchCommand = args.headers_only ? "UID FETCH 1:* (UID BODY.PEEK[HEADER])" : "UID FETCH 1:* (UID BODY[])";
+        std::string uidFetch = "UID FETCH 1:* (UID)";
+        std::string uidResponse = client.sendCommand(uidFetch);
+
+        fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, selectResponse, uidResponse);
+
+        if (fetchCommand.empty())
+        {
+            std::cerr << "No new messages to synchronize." << std::endl;
+            client.sendCommand("LOGOUT");
+            client.disconnect();
+            return 1;
+        }
     }
 
     std::string fetchResponse = client.sendCommand(fetchCommand);
