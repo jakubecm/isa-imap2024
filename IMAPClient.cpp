@@ -22,6 +22,8 @@ private:
     int command_counter;
 
 public:
+    std::string canonical_hostname;
+
     IMAPClient(bool use_tls)
         : socket_fd(-1), ssl(nullptr), ctx(nullptr), use_tls(use_tls), command_counter(1) {}
 
@@ -90,6 +92,19 @@ public:
         // Set socket back to blocking mode
         fcntl(socket_fd, F_SETFL, fcntl(socket_fd, F_GETFL) & ~O_NONBLOCK);
 
+        // Get the canonical hostname of the server
+        char hostname[NI_MAXHOST];
+        result = getnameinfo((struct sockaddr *)&server_addr, sizeof(server_addr), hostname, NI_MAXHOST, NULL, 0, 0);
+        if (result != 0)
+        {
+            std::cerr << "Error: Failed to get canonical hostname: " << gai_strerror(result) << std::endl;
+            canonical_hostname = server; // Pokud selže, ponecháme původní hostname
+        }
+        else
+        {
+            canonical_hostname = std::string(hostname); // Uložíme kanonické jméno serveru
+        }
+
         if (use_tls)
         {
             SSL_load_error_strings();
@@ -130,11 +145,11 @@ public:
                 return false;
             }
 
-            std::cout << "Connected securely to " << server << " on port " << port << std::endl;
+            std::cout << "Connected securely to " << canonical_hostname << " on port " << port << std::endl;
         }
         else
         {
-            std::cout << "Connected non-securely to " << server << " on port " << port << std::endl;
+            std::cout << "Connected non-securely to " << canonical_hostname << " on port " << port << std::endl;
         }
 
         readResponse("*"); // Read the server greeting
