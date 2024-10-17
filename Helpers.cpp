@@ -92,15 +92,126 @@ public:
     }
 
     /**
-     * @brief Get the FETCH command for synchronizing the mailbox.
+     * @brief Get the FETCH command for synchronizing the mailbox based on missing UIDs.
      *
      * @param headersOnly Fetch only the headers.
      * @param mailbox The mailbox name.
      * @param outputDir The directory where the emails are saved.
-     * @param selectResponse The response from the SELECT command.
-     * @return std::string The FETCH command.
+     * @param uidResponse The response from the UID FETCH command.
+     * @return std::string The FETCH command for missing UIDs.
      */
-    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse, const std::string &uidResponse)
+    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir, const std::string &uidResponse)
+    {
+        // Fetch UIDs
+        std::vector<int> localUIDs = GetLocalUIDs(outputDir, mailbox);
+        std::vector<int> serverUIDs = GetMailServerUids(uidResponse);
+        std::vector<int> missingUIDs;
+
+        // Find missing UIDs that are on the server but not locally
+        for (int serverUID : serverUIDs)
+        {
+            if (std::find(localUIDs.begin(), localUIDs.end(), serverUID) == localUIDs.end())
+            {
+                missingUIDs.push_back(serverUID);
+            }
+        }
+
+        if (!missingUIDs.empty())
+        {
+            std::string uidList = std::to_string(missingUIDs[0]);
+            for (size_t i = 1; i < missingUIDs.size(); ++i)
+            {
+                uidList += "," + std::to_string(missingUIDs[i]);
+            }
+
+            // Generate the FETCH command
+            return headersOnly ? "UID FETCH " + uidList + " (UID BODY.PEEK[HEADER])" : "UID FETCH " + uidList + " (UID BODY[])";
+        }
+
+        return "";
+    }
+
+    /**
+     * @brief Ensures the UIDVALIDITY file is generated and valid.
+     *
+     * @param mailbox The mailbox name.
+     * @param outputDir The directory where the UIDVALIDITY file is saved.
+     * @param uidvalidity The UIDVALIDITY string from the SELECT command.
+     * @return true if the UIDVALIDITY matches or file is created; false if UIDVALIDITY mismatch.
+     */
+    static void EnsureUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &uidvalidity)
+    {
+        // Create directory if it doesn't exist
+        if (!fs::exists(outputDir))
+        {
+            fs::create_directories(outputDir);
+        }
+
+        // File path for saving the UIDVALIDITY
+        std::string file_path = outputDir + "/uidvalidity_" + mailbox;
+
+        // Check if the file exists
+        if (fs::exists(file_path))
+        {
+            // Check if the UIDVALIDITY matches
+            std::ifstream uidvalidity_file(file_path);
+            if (uidvalidity_file.is_open())
+            {
+                std::string saved_uidvalidity;
+                uidvalidity_file >> saved_uidvalidity;
+                uidvalidity_file.close();
+
+                if (saved_uidvalidity == uidvalidity)
+                {
+                    return; // UIDVALIDITY matches, no further action needed
+                }
+                else
+                {
+                    // UIDVALIDITY mismatch: delete local mailbox files
+                    for (const auto &entry : fs::directory_iterator(outputDir))
+                    {
+                        if (entry.is_regular_file())
+                        {
+                            std::string filePath = entry.path().string();
+                            if (filePath.find(outputDir + "/" + mailbox) == 0)
+                            {
+                                fs::remove(filePath);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                std::cerr << "Failed to open UIDVALIDITY file: " << file_path << std::endl;
+                return;
+            }
+        }
+
+        // Create or overwrite the UIDVALIDITY file
+        std::ofstream uidvalidity_file(file_path);
+        if (uidvalidity_file.is_open())
+        {
+            uidvalidity_file << uidvalidity;
+            uidvalidity_file.close();
+            std::cout << "UIDVALIDITY " << uidvalidity << " saved to " << file_path << std::endl;
+            return;
+        }
+        else
+        {
+            std::cerr << "Failed to create UIDVALIDITY file: " << file_path << std::endl;
+            return;
+        }
+    }
+
+    /**
+     * @brief Handles parsing the select response, comparing UIDVALIDITY, and managing the UIDVALIDITY file.
+     *
+     * @param mailbox The mailbox name.
+     * @param outputDir The directory where the UIDVALIDITY file is saved.
+     * @param selectResponse The response from the SELECT command.
+     */
+    static void HandleUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse)
     {
         // Regular expression to match the UIDVALIDITY line and capture the number
         std::regex uidvalidity_regex(R"(UIDVALIDITY (\d+))");
@@ -111,112 +222,14 @@ public:
         {
             std::string uidvalidity = match.str(1);
 
-            // Create directory if it doesn't exist
-            if (!fs::exists(outputDir))
-            {
-                fs::create_directories(outputDir);
-            }
-
-            // File path for saving the UIDVALIDITY
-            std::string file_path = outputDir + "/uidvalidity_" + mailbox;
-
-            // Check if the file exists
-            if (fs::exists(file_path))
-            {
-                // Check if the UIDVALIDITY matches
-                std::ifstream uidvalidity_file(file_path);
-
-                if (uidvalidity_file.is_open())
-                {
-                    std::string saved_uidvalidity;
-                    uidvalidity_file >> saved_uidvalidity;
-                    uidvalidity_file.close();
-
-                    if (saved_uidvalidity == uidvalidity)
-                    {
-                        std::vector<int> localUIDs = GetLocalUIDs(outputDir, mailbox);
-                        std::vector<int> serverUIDs = GetMailServerUids(uidResponse);
-                        std::vector<int> missingUIDs;
-
-                        for (int serverUID : serverUIDs)
-                        {
-                            if (std::find(localUIDs.begin(), localUIDs.end(), serverUID) == localUIDs.end())
-                            {
-                                missingUIDs.push_back(serverUID);
-                            }
-                        }
-
-                        if (!missingUIDs.empty())
-                        {
-                            std::string uidList = std::to_string(missingUIDs[0]);
-                            for (size_t i = 1; i < missingUIDs.size(); ++i)
-                            {
-                                uidList += "," + std::to_string(missingUIDs[i]);
-                            }
-
-                            return headersOnly ? "UID FETCH " + uidList + " (UID BODY.PEEK[HEADER])" : "UID FETCH " + uidList + " (UID BODY[])";
-                        }
-                    }
-                    else
-                    {
-                        std::cout << "UIDVALIDITY " << uidvalidity << " does not match the saved value: " << saved_uidvalidity << std::endl;
-
-                        // Delete local mailbox files in the directory, they will be re-downloaded
-                        for (const auto &entry : fs::directory_iterator(outputDir))
-                        {
-                            if (entry.is_regular_file())
-                            {
-                                std::string filePath = entry.path().string();
-                                if (filePath.find(outputDir + "/" + mailbox) == 0)
-                                {
-                                    fs::remove(filePath);
-                                }
-                            }
-                        }
-
-                        // Overwrite the UIDVALIDITY file
-                        std::ofstream uidvalidity_file(file_path);
-                        if (uidvalidity_file.is_open())
-                        {
-                            uidvalidity_file << uidvalidity;
-                            uidvalidity_file.close();
-                            std::cout << "UIDVALIDITY " << uidvalidity << " saved to " << file_path << std::endl;
-                        }
-                        else
-                        {
-                            std::cerr << "Failed to open file: " << file_path << std::endl;
-                        }
-                    }
-                }
-                else
-                {
-                    std::cerr << "Failed to open file: " << file_path << std::endl;
-                }
-            }
-            else
-            {
-                // Create the UIDVALIDITY file
-                std::ofstream uidvalidity_file(file_path);
-                if (uidvalidity_file.is_open())
-                {
-                    uidvalidity_file << uidvalidity;
-                    uidvalidity_file.close();
-                    std::cout << "UIDVALIDITY " << uidvalidity << " saved to " << file_path << std::endl;
-                }
-                else
-                {
-                    std::cerr << "Failed to open file: " << file_path << std::endl;
-                }
-
-                // Download all emails
-                return headersOnly ? "UID FETCH 1:* (UID BODY.PEEK[HEADER])" : "UID FETCH 1:* (UID BODY[])";
-            }
+            // Use the existing EnsureUIDValidity function to handle the UIDVALIDITY file check
+            EnsureUIDValidity(mailbox, outputDir, uidvalidity);
+            return;
         }
         else
         {
-            std::cerr << "UIDVALIDITY not found in the response." << std::endl;
+            std::cerr << "UIDVALIDITY not found in the SELECT response." << std::endl;
+            return;
         }
-
-        return "";
     }
 };

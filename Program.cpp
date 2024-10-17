@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
 
     client.sendCommand("LOGIN " + Helpers::parseLogin(args.authfile));
     std::string selectResponse = client.sendCommand("SELECT " + args.mailbox);
+    Helpers::HandleUIDValidity(args.mailbox, args.outdir, selectResponse);
 
     std::string fetchCommand;
     if (args.new_only)
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
         std::string uidFetch = "UID FETCH 1:* (UID)";
         std::string uidResponse = client.sendCommand(uidFetch);
 
-        fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, selectResponse, uidResponse);
+        fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, uidResponse);
 
         if (fetchCommand.empty())
         {
