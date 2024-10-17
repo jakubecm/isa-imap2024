@@ -91,14 +91,17 @@ int main(int argc, char *argv[])
     std::string fetchCommand;
     if (args.new_only)
     {
-        std::string searchResponse = client.sendCommand("UID SEARCH UNSEEN");
+        std::string searchResponse = client.sendCommand("UID SEARCH NEW");
+        std::cout << searchResponse << std::endl;
         std::vector<std::string> unseenUIDs;
         std::istringstream iss(searchResponse);
         std::string word;
 
+        // Parse the search response to extract only the numbers (UIDs)
         while (iss >> word)
         {
-            if (word != "UID" && word != "SEARCH" && word != "OK" && word != "BYE")
+            // Check if the word is a number (UID)
+            if (!word.empty() && std::all_of(word.begin(), word.end(), ::isdigit))
             {
                 unseenUIDs.push_back(word);
             }
@@ -106,7 +109,7 @@ int main(int argc, char *argv[])
 
         if (unseenUIDs.empty())
         {
-            std::cout << "No unread messages found." << std::endl;
+            std::cout << "No new messages found." << std::endl;
             client.sendCommand("LOGOUT");
             client.disconnect();
             return 0;
