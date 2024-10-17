@@ -55,6 +55,25 @@ public:
             return false;
         }
 
+        // Set send and receive timeout on the socket using setsockopt
+        struct timeval timeout_val;
+        timeout_val.tv_sec = timeout;
+        timeout_val.tv_usec = 0;
+
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout_val, sizeof(timeout_val)) < 0)
+        {
+            std::cerr << "Error: Failed to set receive timeout." << std::endl;
+            close(socket_fd);
+            return false;
+        }
+
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout_val, sizeof(timeout_val)) < 0)
+        {
+            std::cerr << "Error: Failed to set send timeout." << std::endl;
+            close(socket_fd);
+            return false;
+        }
+
         // Set socket to non-blocking mode for timeout handling
         fcntl(socket_fd, F_SETFL, O_NONBLOCK);
 
@@ -68,20 +87,17 @@ public:
         int result = ::connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if (result < 0 && errno != EINPROGRESS)
         {
-            std::cerr << "Error: Connection failed." << std::endl;
+            std::cerr << "Error: Connection failed right away." << std::endl;
             close(socket_fd);
             return false;
         }
 
         // Wait for the connection to complete or timeout
         fd_set fdset;
-        struct timeval tv;
         FD_ZERO(&fdset);
         FD_SET(socket_fd, &fdset);
-        tv.tv_sec = timeout;
-        tv.tv_usec = 0;
 
-        result = select(socket_fd + 1, nullptr, &fdset, nullptr, &tv);
+        result = select(socket_fd + 1, nullptr, &fdset, nullptr, &timeout_val);
         if (result <= 0)
         {
             std::cerr << (result == 0 ? "Connection timed out." : "Connection failed due to select() error.") << std::endl;
@@ -98,11 +114,11 @@ public:
         if (result != 0)
         {
             std::cerr << "Error: Failed to get canonical hostname: " << gai_strerror(result) << std::endl;
-            canonical_hostname = server; // Pokud selže, ponecháme původní hostname
+            canonical_hostname = server;
         }
         else
         {
-            canonical_hostname = std::string(hostname); // Uložíme kanonické jméno serveru
+            canonical_hostname = std::string(hostname);
         }
 
         if (use_tls)
