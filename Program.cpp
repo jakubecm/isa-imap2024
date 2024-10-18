@@ -81,13 +81,12 @@ int main(int argc, char *argv[])
     // Connect to the IMAP server
     if (!client.connect(args.server, args.port, 5, args.certfile, args.certaddr))
     {
-        std::cerr << "Failed to connect to the server." << std::endl;
         return 1;
     }
 
     client.sendCommand("LOGIN " + Helpers::parseLogin(args.authfile));
     std::string selectResponse = client.sendCommand("SELECT " + args.mailbox);
-    Helpers::HandleUIDValidity(args.mailbox, args.outdir, selectResponse);
+    Helpers::HandleUIDValidity(args.mailbox, args.outdir, selectResponse, client.canonical_hostname);
 
     std::string fetchCommand;
     if (args.new_only)
@@ -129,7 +128,7 @@ int main(int argc, char *argv[])
         std::string uidFetch = "UID FETCH 1:* (UID)";
         std::string uidResponse = client.sendCommand(uidFetch);
 
-        fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, uidResponse);
+        fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, uidResponse, client.canonical_hostname);
 
         if (fetchCommand.empty())
         {
@@ -154,9 +153,7 @@ int main(int argc, char *argv[])
         {
             EmailMessage message;
             message.parseMessage(rawEmails[i]);
-
-            // Save email to file
-            message.saveToFile(args.outdir, UIDs[i], args.mailbox);
+            message.saveToFile(args.outdir, UIDs[i], args.mailbox, client.canonical_hostname);
             ++downloadedCount;
         }
         catch (const std::exception &ex)
@@ -165,9 +162,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::cout << "Number of downloaded messages: " << downloadedCount << std::endl;
-
-    // Logout and disconnect
+    std::cout << "Downloaded " << downloadedCount << " new messages." << std::endl;
     client.sendCommand("LOGOUT");
     client.disconnect();
 

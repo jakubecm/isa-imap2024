@@ -48,12 +48,13 @@ public:
      *
      * @param outputDir The directory where the emails are saved.
      * @param mailbox The mailbox name.
+     * @param canonicalHostname The canonical hostname of the mail server.
      * @return std::vector<int> The list of local UIDs.
      */
-    static std::vector<int> GetLocalUIDs(const std::string &outputDir, const std::string &mailbox)
+    static std::vector<int> GetLocalUIDs(const std::string &outputDir, const std::string &mailbox, const std::string &canonicalHostname)
     {
         std::vector<int> localUIDs;
-        std::string filePrefix = outputDir + "/" + mailbox + "_";
+        std::string filePrefix = outputDir + "/" + canonicalHostname + "_" + mailbox + "_";
         for (const auto &entry : fs::directory_iterator(outputDir))
         {
             if (entry.is_regular_file())
@@ -98,12 +99,13 @@ public:
      * @param mailbox The mailbox name.
      * @param outputDir The directory where the emails are saved.
      * @param uidResponse The response from the UID FETCH command.
+     * @param canonicalHostname The canonical hostname of the mail server.
      * @return std::string The FETCH command for missing UIDs.
      */
-    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir, const std::string &uidResponse)
+    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir, const std::string &uidResponse, const std::string &canonicalHostname)
     {
         // Fetch UIDs
-        std::vector<int> localUIDs = GetLocalUIDs(outputDir, mailbox);
+        std::vector<int> localUIDs = GetLocalUIDs(outputDir, mailbox, canonicalHostname);
         std::vector<int> serverUIDs = GetMailServerUids(uidResponse);
         std::vector<int> missingUIDs;
 
@@ -137,9 +139,9 @@ public:
      * @param mailbox The mailbox name.
      * @param outputDir The directory where the UIDVALIDITY file is saved.
      * @param uidvalidity The UIDVALIDITY string from the SELECT command.
-     * @return true if the UIDVALIDITY matches or file is created; false if UIDVALIDITY mismatch.
+     * @param canonicalHostname The canonical hostname of the mail server.
      */
-    static void EnsureUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &uidvalidity)
+    static void EnsureUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &uidvalidity, const std::string &canonicalHostname)
     {
         // Create directory if it doesn't exist
         if (!fs::exists(outputDir))
@@ -148,7 +150,7 @@ public:
         }
 
         // File path for saving the UIDVALIDITY
-        std::string file_path = outputDir + "/uidvalidity_" + mailbox;
+        std::string file_path = outputDir + "/" + canonicalHostname + "_uidvalidity_" + mailbox;
 
         // Check if the file exists
         if (fs::exists(file_path))
@@ -210,8 +212,9 @@ public:
      * @param mailbox The mailbox name.
      * @param outputDir The directory where the UIDVALIDITY file is saved.
      * @param selectResponse The response from the SELECT command.
+     * @param canonicalHostname The canonical hostname of the mail server.
      */
-    static void HandleUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse)
+    static void HandleUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse, const std::string &canonicalHostname)
     {
         // Regular expression to match the UIDVALIDITY line and capture the number
         std::regex uidvalidity_regex(R"(UIDVALIDITY (\d+))");
@@ -223,7 +226,7 @@ public:
             std::string uidvalidity = match.str(1);
 
             // Use the existing EnsureUIDValidity function to handle the UIDVALIDITY file check
-            EnsureUIDValidity(mailbox, outputDir, uidvalidity);
+            EnsureUIDValidity(mailbox, outputDir, uidvalidity, canonicalHostname);
             return;
         }
         else

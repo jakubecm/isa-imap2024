@@ -34,6 +34,7 @@ public:
             {
                 throw std::runtime_error("Detected a line too long.");
             }
+
             // Remove trailing \r if it exists
             if (!line.empty() && line.back() == '\r')
             {
@@ -115,9 +116,9 @@ public:
     }
 
     // Method to save email to a file
-    void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName)
+    void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName, const std::string &canonicalHostname)
     {
-        std::string fileName = directory + "/" + mailboxName + "_" + messageUid + ".eml";
+        std::string fileName = directory + "/" + canonicalHostname + "_" + mailboxName + "_" + messageUid + ".eml";
 
         // Create directory if it doesn't exist
         std::filesystem::create_directories(directory);
