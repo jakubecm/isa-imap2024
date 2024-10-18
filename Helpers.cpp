@@ -235,4 +235,89 @@ public:
             return;
         }
     }
+
+    /**
+     * @brief Handles the response from the LOGIN command to check for authentication failure.
+     *
+     * @param response The response from the LOGIN command.
+     */
+    static void HandleLoginResponse(const std::string &response)
+    {
+        // Check if the response contains "NO" and "[AUTHENTICATIONFAILED]"
+        if (response.find("NO") != std::string::npos &&
+            response.find("[AUTHENTICATIONFAILED]") != std::string::npos)
+        {
+            std::cerr << "Error: Authentication failed." << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /**
+     * @brief Parse the IMAP response to extract the raw emails and UIDs.
+     *
+     * @param fetchResponse The response from the FETCH command.
+     * @param rawEmails The vector to store the raw email strings.
+     * @param UIDs The vector to store the UIDs.
+     */
+    static void ParseImapResponse(const std::string &fetchResponse, std::vector<std::string> &rawEmails, std::vector<std::string> &UIDs)
+    {
+        std::istringstream stream(fetchResponse);
+        std::string line;
+        std::string currentEmail;
+        bool readingBody = false;
+        int expectedBodySize = 0;
+        std::string currentUID;
+
+        while (std::getline(stream, line))
+        {
+            // Skip untagged responses like EXISTS, RECENT, EXPUNGE
+            if (line.find("* ") == 0 && (line.find("EXISTS") != std::string::npos || line.find("RECENT") != std::string::npos || line.find("EXPUNGE") != std::string::npos))
+            {
+                continue;
+            }
+            // Check for the start of a new FETCH response
+            if (line.find("FETCH (UID ") != std::string::npos)
+            {
+                // Store the previous email if we were reading a body
+                if (!currentEmail.empty() && readingBody && expectedBodySize == 0)
+                {
+                    rawEmails.push_back(currentEmail);
+                    currentEmail.clear();
+                }
+
+                // Find and extract the UID
+                size_t uidStart = line.find("UID ") + 4;
+                size_t uidEnd = line.find(" ", uidStart);
+                currentUID = line.substr(uidStart, uidEnd - uidStart);
+                UIDs.push_back(currentUID);
+
+                // Check for the body size
+                size_t bodyStart = line.find("{");
+                if (bodyStart != std::string::npos)
+                {
+                    size_t bodyEnd = line.find("}", bodyStart);
+                    expectedBodySize = std::stoi(line.substr(bodyStart + 1, bodyEnd - bodyStart - 1));
+                    readingBody = true;
+                }
+            }
+            else if (readingBody)
+            {
+                currentEmail += line + "\n";
+                expectedBodySize -= line.length() + 1;
+
+                if (expectedBodySize <= 0)
+                {
+                    rawEmails.push_back(currentEmail);
+                    currentEmail.clear();
+                    readingBody = false;
+                }
+            }
+        }
+
+        // Handle the last email in case it was not added
+        if (!currentEmail.empty() && readingBody && expectedBodySize == 0)
+        {
+            rawEmails.push_back(currentEmail);
+        }
+    }
 };
