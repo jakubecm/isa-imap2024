@@ -2,7 +2,6 @@
 #include "ArgumentParser.h"
 #include "IMAPClient.cpp"
 #include "EmailMessage.cpp"
-#include "Helpers.cpp"
 #include <unistd.h>
 #include <cstring>
 #include <fstream>
@@ -94,16 +93,32 @@ int main(int argc, char *argv[])
         {
             EmailMessage message;
             message.parseMessage(rawEmails[i]);
-            message.saveToFile(args.outdir, UIDs[i], args.mailbox, client.canonical_hostname);
+            message.saveToFile(args.outdir, UIDs[i], args.mailbox, client.canonical_hostname, args.headers_only);
             ++downloadedCount;
         }
         catch (const std::exception &ex)
         {
-            std::cerr << "Failed to process email " << i + 1 << ": " << ex.what() << std::endl;
+            std::cerr << "Error: Failed to process email " << i + 1 << ": " << ex.what() << std::endl;
         }
     }
 
-    std::cout << "Downloaded " << downloadedCount << " new messages." << std::endl;
+    if (args.headers_only && args.new_only)
+    {
+        std::cout << "Downloaded " << downloadedCount << " new messages (headers only)." << std::endl;
+    }
+    else if (args.headers_only)
+    {
+        std::cout << "Downloaded " << downloadedCount << " messages (headers only)." << std::endl;
+    }
+    else if (args.new_only)
+    {
+        std::cout << "Downloaded " << downloadedCount << " new messages." << std::endl;
+    }
+    else
+    {
+        std::cout << "Downloaded " << downloadedCount << "messages." << std::endl;
+    }
+
     client.sendCommand("LOGOUT");
     client.disconnect();
 

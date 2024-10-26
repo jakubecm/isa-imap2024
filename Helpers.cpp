@@ -54,11 +54,12 @@ public:
      * @param outputDir The directory where the emails are saved.
      * @param mailbox The mailbox name.
      * @param canonicalHostname The canonical hostname of the mail server.
-     * @return std::vector<int> The list of local UIDs.
+     * @param headersOnly UIDs with only headers downloaded.
+     * @param fullEmails UIDs with full emails downloaded.
      */
-    static std::vector<int> GetLocalUIDs(const std::string &outputDir, const std::string &mailbox, const std::string &canonicalHostname)
+    static void GetLocalUIDs(const std::string &outputDir, const std::string &mailbox, const std::string &canonicalHostname,
+                             std::vector<int> &headersOnly, std::vector<int> &fullEmails)
     {
-        std::vector<int> localUIDs;
         std::string filePrefix = outputDir + "/" + canonicalHostname + "_" + mailbox + "_";
         for (const auto &entry : fs::directory_iterator(outputDir))
         {
@@ -67,13 +68,20 @@ public:
                 std::string filePath = entry.path().string();
                 if (filePath.find(filePrefix) == 0)
                 {
-                    std::string uid = filePath.substr(filePrefix.length(), filePath.length() - filePrefix.length() - 4);
-                    localUIDs.push_back(std::stoi(uid));
+                    std::string uidStr = filePath.substr(filePrefix.length(), filePath.length() - filePrefix.length() - 4);
+
+                    // Check if it's a header-only file
+                    if (filePath.substr(filePath.length() - 12) == "_headers.eml")
+                    {
+                        headersOnly.push_back(std::stoi(uidStr));
+                    }
+                    else if (filePath.substr(filePath.length() - 4) == ".eml")
+                    {
+                        fullEmails.push_back(std::stoi(uidStr));
+                    }
                 }
             }
         }
-
-        return localUIDs;
     }
 
     /**
@@ -105,30 +113,46 @@ public:
      * @param outputDir The directory where the emails are saved.
      * @param uidResponse The response from the UID FETCH command.
      * @param canonicalHostname The canonical hostname of the mail server.
-     * @return std::string The FETCH command for missing UIDs.
+     * @return std::string The FETCH command for missing or upgradeable UIDs.
      */
-    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir, const std::string &uidResponse, const std::string &canonicalHostname)
+    static std::string GetSynchronizingFetch(bool headersOnly, const std::string &mailbox, const std::string &outputDir,
+                                             const std::string &uidResponse, const std::string &canonicalHostname)
     {
-        // Fetch UIDs
-        std::vector<int> localUIDs = GetLocalUIDs(outputDir, mailbox, canonicalHostname);
+        std::vector<int> headerOnlyUIDs, fullEmailUIDs;
+        GetLocalUIDs(outputDir, mailbox, canonicalHostname, headerOnlyUIDs, fullEmailUIDs);
         std::vector<int> serverUIDs = GetMailServerUids(uidResponse);
-        std::vector<int> missingUIDs;
+        std::vector<int> fetchUIDs;
 
-        // Find missing UIDs that are on the server but not locally
-        for (int serverUID : serverUIDs)
+        if (headersOnly)
         {
-            if (std::find(localUIDs.begin(), localUIDs.end(), serverUID) == localUIDs.end())
+            // Find UIDs that are missing completely (for headers)
+            for (int serverUID : serverUIDs)
             {
-                missingUIDs.push_back(serverUID);
+                if (std::find(headerOnlyUIDs.begin(), headerOnlyUIDs.end(), serverUID) == headerOnlyUIDs.end() &&
+                    std::find(fullEmailUIDs.begin(), fullEmailUIDs.end(), serverUID) == fullEmailUIDs.end())
+                {
+                    fetchUIDs.push_back(serverUID);
+                }
+            }
+        }
+        else
+        {
+            // Find UIDs that are either missing completely or have only headers (to upgrade)
+            for (int serverUID : serverUIDs)
+            {
+                if (std::find(fullEmailUIDs.begin(), fullEmailUIDs.end(), serverUID) == fullEmailUIDs.end())
+                {
+                    fetchUIDs.push_back(serverUID);
+                }
             }
         }
 
-        if (!missingUIDs.empty())
+        if (!fetchUIDs.empty())
         {
-            std::string uidList = std::to_string(missingUIDs[0]);
-            for (size_t i = 1; i < missingUIDs.size(); ++i)
+            std::string uidList = std::to_string(fetchUIDs[0]);
+            for (size_t i = 1; i < fetchUIDs.size(); ++i)
             {
-                uidList += "," + std::to_string(missingUIDs[i]);
+                uidList += "," + std::to_string(fetchUIDs[i]);
             }
 
             // Generate the FETCH command
@@ -230,7 +254,6 @@ public:
         {
             std::string uidvalidity = match.str(1);
 
-            // Use the existing EnsureUIDValidity function to handle the UIDVALIDITY file check
             EnsureUIDValidity(mailbox, outputDir, uidvalidity, canonicalHostname);
             return;
         }
@@ -330,6 +353,21 @@ public:
         if (!currentEmail.empty() && readingBody && expectedBodySize == 0)
         {
             rawEmails.push_back(currentEmail);
+        }
+    }
+
+    /**
+     * @brief Check if headerfile exists and delete it. Used for upgrading from headers to full emails.
+     *
+     * @param filename The name of the file to check and delete.
+     */
+    static void CheckIfHeaderFileExistsAndDelete(const std::string &filename)
+    {
+        std::string headerfile = filename + "_headers.eml";
+
+        if (fs::exists(headerfile))
+        {
+            fs::remove(headerfile);
         }
     }
 };

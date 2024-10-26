@@ -5,6 +5,7 @@
 #include <sstream>
 #include <fstream>
 #include <filesystem>
+#include "Helpers.cpp"
 
 class EmailMessage
 {
@@ -14,7 +15,7 @@ private:
     std::string UID;
 
     // RFC 5322 recommends 78 characters per line and allows up to 998 excluding CRLF
-    static constexpr size_t MAX_LINE_LENGTH = 998;
+    static constexpr size_t MAX_LINE_LENGTH = 1000;
 
 public:
     EmailMessage() {}
@@ -30,11 +31,6 @@ public:
         // Separate headers and body
         while (std::getline(emailStream, line))
         {
-            if (line.length() > MAX_LINE_LENGTH)
-            {
-                throw std::runtime_error("Detected a line too long.");
-            }
-
             // Remove trailing \r if it exists
             if (!line.empty() && line.back() == '\r')
             {
@@ -94,10 +90,6 @@ public:
         }
     }
 
-    // Getter for headers and body for debugging
-    const std::multimap<std::string, std::string> &getHeaders() const { return headers; }
-    const std::string &getBody() const { return body; }
-
     // Method to print all headers (for debugging)
     void printHeaders() const
     {
@@ -116,12 +108,21 @@ public:
     }
 
     // Method to save email to a file
-    void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName, const std::string &canonicalHostname)
+    void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName,
+                    const std::string &canonicalHostname, bool headersOnly)
     {
-        std::string fileName = directory + "/" + canonicalHostname + "_" + mailboxName + "_" + messageUid + ".eml";
 
-        // Create directory if it doesn't exist
-        std::filesystem::create_directories(directory);
+        std::string fileName = directory + "/" + canonicalHostname + "_" + mailboxName + "_" + messageUid;
+        Helpers::CheckIfHeaderFileExistsAndDelete(fileName);
+
+        if (headersOnly)
+        {
+            fileName += "_headers.eml";
+        }
+        else
+        {
+            fileName += ".eml";
+        }
 
         std::ofstream outFile(fileName);
         if (!outFile.is_open())
@@ -139,7 +140,10 @@ public:
         outFile << "\n";
 
         // Write body
-        outFile << body;
+        if (!headersOnly)
+        {
+            outFile << body;
+        }
 
         outFile.close();
     }
