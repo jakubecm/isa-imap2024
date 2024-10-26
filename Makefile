@@ -1,7 +1,10 @@
 CC = g++
 CFLAGS = -Wall -Wextra -std=c++17 -g
 
-SRCS = ArgumentParser.cpp Program.cpp
+# OpenSSL libraries
+LIBS = -lssl -lcrypto
+
+SRCS = ArgumentParser.cpp Program.cpp IMAPClient.cpp EmailMessage.cpp Helpers.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 TARGET = imapcl
@@ -9,7 +12,7 @@ TARGET = imapcl
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
