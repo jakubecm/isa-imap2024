@@ -39,6 +39,11 @@ public:
             }
             file.close();
         }
+        else
+        {
+            std::cerr << "Failed to open authfile: " << authfile << std::endl;
+            exit(EXIT_FAILURE);
+        }
 
         return username + " " + password;
     }
@@ -248,6 +253,13 @@ public:
             response.find("[AUTHENTICATIONFAILED]") != std::string::npos)
         {
             std::cerr << "Error: Authentication failed." << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        // Check if the response contains "BAD"
+        if (response.find("BAD") != std::string::npos)
+        {
+            std::cerr << "Error: Invalid or missing login." << std::endl;
             exit(EXIT_FAILURE);
         }
     }

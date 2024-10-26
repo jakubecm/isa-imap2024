@@ -16,13 +16,14 @@ int main(int argc, char *argv[])
     ArgumentParser::ParsedArgs args = parser.parse();
     IMAPClient client(args.use_tls);
 
-    // Connect to the IMAP server
+    std::string loginCommand = "LOGIN " + Helpers::parseLogin(args.authfile);
+
     if (!client.connect(args.server, args.port, 5, args.certfile, args.certaddr))
     {
         return EXIT_FAILURE;
     }
 
-    std::string loginResponse = client.sendCommand("LOGIN " + Helpers::parseLogin(args.authfile));
+    std::string loginResponse = client.sendCommand(loginCommand);
     Helpers::HandleLoginResponse(loginResponse);
 
     std::string selectResponse = client.sendCommand("SELECT " + args.mailbox);
