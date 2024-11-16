@@ -249,9 +249,16 @@ public:
      * @param outputDir The directory where the UIDVALIDITY file is saved.
      * @param selectResponse The response from the SELECT command.
      * @param canonicalHostname The canonical hostname of the mail server.
+     * @return true if the UIDVALIDITY was found and handled, false otherwise.
      */
-    static void HandleUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse, const std::string &canonicalHostname)
+    static bool HandleUIDValidity(const std::string &mailbox, const std::string &outputDir, const std::string &selectResponse, const std::string &canonicalHostname)
     {
+        // Check for NO or BAD response
+        if ((selectResponse.find("NO") != std::string::npos) || (selectResponse.find("BAD") != std::string::npos))
+        {
+            std::cerr << "Error: Unexpected response from server." << std::endl;
+            return false;
+        }
         // Regular expression to match the UIDVALIDITY line and capture the number
         std::regex uidvalidity_regex(R"(UIDVALIDITY (\d+))");
         std::smatch match;
@@ -262,36 +269,39 @@ public:
             std::string uidvalidity = match.str(1);
 
             EnsureUIDValidity(mailbox, outputDir, uidvalidity, canonicalHostname);
-            return;
         }
         else
         {
-            std::cerr << "UIDVALIDITY not found in the SELECT response." << std::endl;
-            return;
+            std::cerr << "Error: UIDVALIDITY not found in server response." << std::endl;
+            return false;
         }
+
+        return true;
     }
 
     /**
      * @brief Handles the response from the LOGIN command to check for authentication failure.
      *
      * @param response The response from the LOGIN command.
+     * @return true if the login was successful, false otherwise.
      */
-    static void HandleLoginResponse(const std::string &response)
+    static bool HandleLoginResponse(const std::string &response)
     {
-        // Check if the response contains "NO" and "[AUTHENTICATIONFAILED]"
-        if (response.find("NO") != std::string::npos &&
-            response.find("[AUTHENTICATIONFAILED]") != std::string::npos)
+        // Check if the response contains "NO"
+        if (response.find("NO") != std::string::npos)
         {
             std::cerr << "Error: Authentication failed." << std::endl;
-            exit(EXIT_FAILURE);
+            return false;
         }
 
         // Check if the response contains "BAD"
         if (response.find("BAD") != std::string::npos)
         {
             std::cerr << "Error: Invalid or missing login." << std::endl;
-            exit(EXIT_FAILURE);
+            return false;
         }
+
+        return true;
     }
 
     /**
@@ -300,8 +310,9 @@ public:
      * @param fetchResponse The response from the FETCH command.
      * @param rawEmails The vector to store the raw email strings.
      * @param UIDs The vector to store the UIDs.
+     * @return true if the parsing was successful, false otherwise.
      */
-    static void ParseImapResponse(const std::string &fetchResponse, std::vector<std::string> &rawEmails, std::vector<std::string> &UIDs)
+    static bool ParseImapResponse(const std::string &fetchResponse, std::vector<std::string> &rawEmails, std::vector<std::string> &UIDs)
     {
         std::istringstream stream(fetchResponse);
         std::string line;
@@ -312,6 +323,13 @@ public:
 
         while (std::getline(stream, line))
         {
+            // Check for error tags in the response
+            if (!readingBody && ((line.find("NO") != std::string::npos) || (line.find("BAD") != std::string::npos)))
+            {
+                std::cerr << "Error in server response: " << line << std::endl;
+                return false; // Stop parsing on error
+            }
+
             // Skip untagged responses like EXISTS, RECENT, EXPUNGE
             if (line.find("* ") == 0 && (line.find("EXISTS") != std::string::npos || line.find("RECENT") != std::string::npos || line.find("EXPUNGE") != std::string::npos))
             {
@@ -361,6 +379,8 @@ public:
         {
             rawEmails.push_back(currentEmail);
         }
+
+        return true;
     }
 
     /**

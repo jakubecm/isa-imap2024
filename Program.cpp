@@ -23,19 +23,38 @@ int main(int argc, char *argv[])
     }
 
     std::string loginResponse = client.sendCommand(loginCommand);
-    Helpers::HandleLoginResponse(loginResponse);
+
+    if (!Helpers::HandleLoginResponse(loginResponse))
+    {
+        client.disconnect();
+        return EXIT_FAILURE;
+    }
 
     std::string selectResponse = client.sendCommand("SELECT " + args.mailbox);
-    Helpers::HandleUIDValidity(args.mailbox, args.outdir, selectResponse, client.canonical_hostname);
+
+    if (!Helpers::HandleUIDValidity(args.mailbox, args.outdir, selectResponse, client.canonical_hostname))
+    {
+        client.sendCommand("LOGOUT");
+        client.disconnect();
+        return EXIT_FAILURE;
+    }
 
     std::string fetchCommand;
     if (args.new_only)
     {
         std::string searchResponse = client.sendCommand("UID SEARCH NEW");
-        std::cout << searchResponse << std::endl;
         std::vector<std::string> unseenUIDs;
         std::istringstream iss(searchResponse);
         std::string word;
+
+        // Check for errors in the search response
+        if (searchResponse.find("NO") != std::string::npos || searchResponse.find("BAD") != std::string::npos)
+        {
+            std::cerr << "Error in server response: unable to retreive email UIDs" << std::endl;
+            client.sendCommand("LOGOUT");
+            client.disconnect();
+            return EXIT_FAILURE;
+        }
 
         // Parse the search response to extract only the numbers (UIDs)
         while (iss >> word)
@@ -75,7 +94,7 @@ int main(int argc, char *argv[])
             std::cerr << "No new messages to synchronize." << std::endl;
             client.sendCommand("LOGOUT");
             client.disconnect();
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
         }
     }
 
@@ -83,7 +102,13 @@ int main(int argc, char *argv[])
 
     std::vector<std::string> rawEmails;
     std::vector<std::string> UIDs;
-    Helpers::ParseImapResponse(fetchResponse, rawEmails, UIDs);
+
+    if (!Helpers::ParseImapResponse(fetchResponse, rawEmails, UIDs))
+    {
+        client.sendCommand("LOGOUT");
+        client.disconnect();
+        return EXIT_FAILURE;
+    };
 
     // Process and save emails
     int downloadedCount = 0;
