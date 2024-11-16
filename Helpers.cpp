@@ -220,7 +220,7 @@ public:
                         if (entry.is_regular_file())
                         {
                             std::string filePath = entry.path().string();
-                            if (filePath.find(outputDir + "/" + mailbox) == 0)
+                            if (filePath.find(outputDir + "/" + canonicalHostname + "_" + mailbox) == 0)
                             {
                                 fs::remove(filePath);
                             }
