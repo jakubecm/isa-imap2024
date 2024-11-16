@@ -1,3 +1,10 @@
+/**
+ * @file IMAPClient.cpp
+ * @author Milan Jakubec (xjakub41)
+ * @date 2024-11-15
+ * @brief A file implementing an abstraction for an IMAP client using OpenSSL.
+ */
+
 #include <iostream>
 #include <iomanip>
 #include <openssl/ssl.h>
@@ -12,18 +19,25 @@
 #include <fcntl.h>
 #include <regex>
 
+/**
+ * @brief An IMAP client class that can connect to an IMAP server using regular sockets or SSL.
+ */
 class IMAPClient
 {
 private:
-    int socket_fd;
-    SSL *ssl;
-    SSL_CTX *ctx;
-    bool use_tls;
-    int command_counter;
+    int socket_fd;       // Socket file descriptor
+    SSL *ssl;            // SSL structure
+    SSL_CTX *ctx;        // SSL context
+    bool use_tls;        // Whether to use SSL/TLS
+    int command_counter; // Counter for IMAP commands (tagged)
 
 public:
-    std::string canonical_hostname;
+    std::string canonical_hostname; // The canonical hostname of the server (meaning the fully qualified domain name)
 
+    /**
+     * @brief Construct a new IMAPClient object.
+     * Sets socket_fd to -1 and initializes the SSL context and structure to nullptr.
+     */
     IMAPClient(bool use_tls)
         : socket_fd(-1), ssl(nullptr), ctx(nullptr), use_tls(use_tls), command_counter(1) {}
 
@@ -37,7 +51,7 @@ public:
      * @param certaddr The path to the certificate store
      * @return true if the connection was successful, false otherwise
      */
-    bool connect(const std::string &server, int port, int timeout, const std::string &certfile = "", const std::string &certaddr = "/etc/ssl/certs")
+    bool connect(const std::string &server, int port, int timeout, const std::string &certfile, const std::string &certaddr)
     {
         struct sockaddr_in server_addr;
         struct hostent *host;

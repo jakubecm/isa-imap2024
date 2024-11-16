@@ -1,3 +1,10 @@
+/**
+ * @file Helpers.cpp
+ * @author Milan Jakubec (xjakub41)
+ * @date 2024-11-15
+ * @brief A file implementing a class for helper functions that are used repeatedly.
+ */
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -236,7 +243,7 @@ public:
     }
 
     /**
-     * @brief Handles parsing the select response, comparing UIDVALIDITY, and managing the UIDVALIDITY file.
+     * @brief Handles parsing the select response to find UIDVALIDITY and pass it to handler function EnsureUIDValidity
      *
      * @param mailbox The mailbox name.
      * @param outputDir The directory where the UIDVALIDITY file is saved.

@@ -1,3 +1,10 @@
+/**
+ * @file EmailMessage.cpp
+ * @author Milan Jakubec (xjakub41)
+ * @date 2024-11-15
+ * @brief A file implementing a helper mail message class to parse email messages.
+ */
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -7,23 +14,34 @@
 #include <filesystem>
 #include "Helpers.cpp"
 
+/**
+ * @class EmailMessage
+ * @brief A class to represent an email message.
+ */
 class EmailMessage
 {
 private:
-    std::multimap<std::string, std::string> headers;
-    std::string body;
-    std::string UID;
+    std::multimap<std::string, std::string> headers; // Multimap to store headers and their values
+    std::string body;                                // String to store the email body
+    std::string UID;                                 // String to store the email UID
 
     // RFC 5322 recommends 78 characters per line and allows up to 998 excluding CRLF
     static constexpr size_t MAX_LINE_LENGTH = 1000;
 
 public:
+    /**
+     * @brief Constructs an EmailMessage object.
+     */
     EmailMessage() {}
 
+    /**
+     * @brief Parse the raw email message into headers and body.
+     * @param rawEmail The raw email message as a string.
+     */
     void parseMessage(const std::string &rawEmail)
     {
-        std::istringstream emailStream(rawEmail);
-        std::string line;
+        std::istringstream emailStream(rawEmail); // Create a stream from the raw email string
+        std::string line;                         // String to store the current line
         std::string currentHeaderName;
         std::string currentHeaderValue;
         bool inHeaders = true;
@@ -90,7 +108,9 @@ public:
         }
     }
 
-    // Method to print all headers (for debugging)
+    /**
+     * @brief Get the email headers. Serves only as a debugging function.
+     */
     void printHeaders() const
     {
         if (headers.empty())
@@ -107,7 +127,14 @@ public:
         }
     }
 
-    // Method to save email to a file
+    /**
+     * @brief Save the email message to a file.
+     * @param directory The directory where the email should be saved.
+     * @param messageUid The UID of the email message.
+     * @param mailboxName The name of the mailbox the email belongs to.
+     * @param canonicalHostname The canonical hostname of the mail server.
+     * @param headersOnly Whether to save only the headers.
+     */
     void saveToFile(const std::string &directory, const std::string &messageUid, const std::string &mailboxName,
                     const std::string &canonicalHostname, bool headersOnly)
     {
