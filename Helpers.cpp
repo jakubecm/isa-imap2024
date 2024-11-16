@@ -99,14 +99,23 @@ public:
     static std::vector<int> GetMailServerUids(const std::string &serverResponse)
     {
         std::vector<int> serverUIDs;
-        std::regex uid_regex(R"(\* \d+ FETCH \(UID (\d+)\))");
+        std::regex uid_regex(R"(\* SEARCH( (\d+))+)");
         std::smatch match;
         std::string::const_iterator searchStart(serverResponse.cbegin());
 
-        while (std::regex_search(searchStart, serverResponse.cend(), match, uid_regex))
+        if (std::regex_search(searchStart, serverResponse.cend(), match, uid_regex))
         {
-            serverUIDs.push_back(std::stoi(match[1].str()));
-            searchStart = match.suffix().first;
+            std::string uidList = match[0].str(); // This captures the whole line with UIDs
+            std::istringstream iss(uidList);
+            std::string uid;
+            // Skip the '* SEARCH' part by reading the first two segments which are '* SEARCH'
+            iss >> uid; // Read '*'
+            iss >> uid; // Read 'SEARCH'
+
+            while (iss >> uid)
+            {
+                serverUIDs.push_back(std::stoi(uid));
+            }
         }
 
         return serverUIDs;

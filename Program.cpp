@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        std::string uidFetch = "UID FETCH 1:* (UID)";
+        std::string uidFetch = "UID SEARCH ALL";
         std::string uidResponse = client.sendCommand(uidFetch);
 
         fetchCommand = Helpers::GetSynchronizingFetch(args.headers_only, args.mailbox, args.outdir, uidResponse, client.canonical_hostname);
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        std::cout << "Downloaded " << downloadedCount << "messages." << std::endl;
+        std::cout << "Downloaded " << downloadedCount << " messages." << std::endl;
     }
 
     client.sendCommand("LOGOUT");
