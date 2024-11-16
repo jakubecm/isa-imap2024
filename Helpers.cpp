@@ -241,7 +241,6 @@ public:
         {
             uidvalidity_file << uidvalidity;
             uidvalidity_file.close();
-            std::cout << "UIDVALIDITY " << uidvalidity << " saved to " << file_path << std::endl;
             return;
         }
         else

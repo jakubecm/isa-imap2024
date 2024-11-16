@@ -157,12 +157,6 @@ public:
                 close(socket_fd);
                 return false;
             }
-
-            std::cout << "Connected securely to " << canonical_hostname << " on port " << port << std::endl;
-        }
-        else
-        {
-            std::cout << "Connected non-securely to " << canonical_hostname << " on port " << port << std::endl;
         }
 
         readResponse("*"); // Read the server greeting
@@ -192,7 +186,6 @@ public:
             send(socket_fd, full_command.c_str(), full_command.size(), 0);
         }
 
-        std::cout << "Sent command: " << command << std::endl;
         std::string response = readResponse(full_command.substr(0, 4)); // Read the response and check the tagged response
 
         return response; // Return the full response
@@ -316,7 +309,7 @@ public:
 
             if (shutdown_status == 1)
             {
-                std::cout << "SSL/TLS connection closed gracefully." << std::endl;
+                return;
             }
             else
             {

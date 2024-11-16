@@ -128,19 +128,19 @@ int main(int argc, char *argv[])
 
     if (args.headers_only && args.new_only)
     {
-        std::cout << "Downloaded " << downloadedCount << " new messages (headers only)." << std::endl;
+        std::cout << "Downloaded " << downloadedCount << " new messages (headers only) from mailbox " << args.mailbox << std::endl;
     }
     else if (args.headers_only)
     {
-        std::cout << "Downloaded " << downloadedCount << " messages (headers only)." << std::endl;
+        std::cout << "Downloaded " << downloadedCount << " messages (headers only) from mailbox " << args.mailbox << std::endl;
     }
     else if (args.new_only)
     {
-        std::cout << "Downloaded " << downloadedCount << " new messages." << std::endl;
+        std::cout << "Downloaded " << downloadedCount << " new messages from mailbox " << args.mailbox << std::endl;
     }
     else
     {
-        std::cout << "Downloaded " << downloadedCount << " messages." << std::endl;
+        std::cout << "Downloaded " << downloadedCount << " messages from mailbox " << args.mailbox << std::endl;
     }
 
     client.sendCommand("LOGOUT");
