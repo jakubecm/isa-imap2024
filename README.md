@@ -55,4 +55,4 @@ The parameters for the program are as follows:
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for more details.
+This project is licensed under the GPL-3.0 license. See the `LICENSE` file for more details.
