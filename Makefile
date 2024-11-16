@@ -1,3 +1,7 @@
+# File: Makefile
+# Author: Milan Jakubec (xjakub41)
+# Description: Makefile for the project
+
 CC = g++
 CFLAGS = -Wall -Wextra -std=c++17 -g
 
