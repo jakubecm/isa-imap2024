@@ -296,21 +296,24 @@ public:
      */
     static bool HandleLoginResponse(const std::string &response)
     {
-        // Check if the response contains "NO"
-        if (response.find("NO") != std::string::npos)
+        // Regular expressions for standalone "NO" or "BAD"
+        std::regex no_regex(R"(\bNO\b)");
+        std::regex bad_regex(R"(\bBAD\b)");
+
+        if (std::regex_search(response, no_regex) || std::regex_search(response, bad_regex))
         {
             std::cerr << "Error: Authentication failed." << std::endl;
             return false;
         }
 
-        // Check if the response contains "BAD"
-        if (response.find("BAD") != std::string::npos)
+        // Check for "OK"
+        if (response.find("OK") != std::string::npos)
         {
-            std::cerr << "Error: Invalid or missing login." << std::endl;
-            return false;
+            return true;
         }
 
-        return true;
+        std::cerr << "Error: Unexpected response format." << std::endl;
+        return false;
     }
 
     /**
