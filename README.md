@@ -5,7 +5,7 @@
 
 ## Project Description
 
-This project is part of the ISA-IMAP2024 course. It aims to implement an IMAP (Internet Message Access Protocol) client that can interact with an email server to retrieve emails from. It can retreive either headers or full emails, new emails or all emails. It basically synchronizes the email client with the email server. 
+This project is part of the ISA course. It aims to implement an IMAP (Internet Message Access Protocol) client that can interact with an email server to retrieve emails from. It can retreive either headers or full emails, new emails or all emails. It basically synchronizes the email client with the email server. 
 
 ## Files
 
