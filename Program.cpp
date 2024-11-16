@@ -116,8 +116,7 @@ int main(int argc, char *argv[])
     {
         try
         {
-            EmailMessage message;
-            message.parseMessage(rawEmails[i]);
+            EmailMessage message(rawEmails[i]);
             message.saveToFile(args.outdir, UIDs[i], args.mailbox, client.canonical_hostname, args.headers_only);
             ++downloadedCount;
         }

@@ -21,111 +21,14 @@
 class EmailMessage
 {
 private:
-    std::multimap<std::string, std::string> headers; // Multimap to store headers and their values
-    std::string body;                                // String to store the email body
-    std::string UID;                                 // String to store the email UID
-
-    // RFC 5322 recommends 78 characters per line and allows up to 998 excluding CRLF
-    static constexpr size_t MAX_LINE_LENGTH = 1000;
+    std::string email;  // The email message as a string.
 
 public:
     /**
-     * @brief Constructs an EmailMessage object.
+     * @brief Constructs an EmailMessage object with the given email.
+     * @param email The email message as a string.
      */
-    EmailMessage() {}
-
-    /**
-     * @brief Parse the raw email message into headers and body.
-     * @param rawEmail The raw email message as a string.
-     */
-    void parseMessage(const std::string &rawEmail)
-    {
-        std::istringstream emailStream(rawEmail); // Create a stream from the raw email string
-        std::string line;                         // String to store the current line
-        std::string currentHeaderName;
-        std::string currentHeaderValue;
-        bool inHeaders = true;
-
-        // Separate headers and body
-        while (std::getline(emailStream, line))
-        {
-            // Remove trailing \r if it exists
-            if (!line.empty() && line.back() == '\r')
-            {
-                line.pop_back();
-            }
-
-            // End of headers section is marked by an empty line
-            if (inHeaders && line.empty())
-            {
-                inHeaders = false;
-                continue;
-            }
-
-            if (inHeaders)
-            {
-                // Handle header continuation (folding)
-                if (!currentHeaderName.empty() && (line[0] == ' ' || line[0] == '\t'))
-                {
-                    // Append continued header value (folding)
-                    currentHeaderValue += " " + line.substr(1); // remove leading space/tab
-                }
-                else
-                {
-                    // Save the previous header and its value before processing a new header
-                    if (!currentHeaderName.empty())
-                    {
-                        headers.emplace(currentHeaderName, currentHeaderValue);
-                    }
-
-                    // Parse new header
-                    size_t colonPos = line.find(':');
-                    if (colonPos != std::string::npos)
-                    {
-                        currentHeaderName = line.substr(0, colonPos);
-                        currentHeaderValue = line.substr(colonPos + 1);
-                        // Trim leading whitespace in the header value
-                        currentHeaderValue.erase(0, currentHeaderValue.find_first_not_of(" \t"));
-                    }
-                    else
-                    {
-                        // Handle invalid header without a colon (just skip it)
-                        currentHeaderName.clear();
-                        currentHeaderValue.clear();
-                    }
-                }
-            }
-            else
-            {
-                body += line + "\n";
-            }
-        }
-
-        // Store the last header
-        if (!currentHeaderName.empty())
-        {
-            headers.emplace(currentHeaderName, currentHeaderValue);
-        }
-    }
-
-    /**
-     * @brief Get the email headers. Serves only as a debugging function.
-     */
-    void printHeaders() const
-    {
-        if (headers.empty())
-        {
-            std::cout << "No headers found!" << std::endl;
-        }
-        else
-        {
-            std::cout << "Printing " << headers.size() << " headers:" << std::endl;
-            for (const auto &header : headers)
-            {
-                std::cout << header.first << ": " << header.second << std::endl;
-            }
-        }
-    }
+    EmailMessage(const std::string &email) : email(email) {}
 
     /**
      * @brief Save the email message to a file.
@@ -157,20 +60,7 @@ public:
             throw std::runtime_error("Unable to create file: " + fileName);
         }
 
-        // Write headers
-        for (const auto &header : headers)
-        {
-            outFile << header.first << ": " << header.second << "\n";
-        }
-
-        // Write a newline to separate headers from body
-        outFile << "\n";
-
-        // Write body
-        if (!headersOnly)
-        {
-            outFile << body;
-        }
+        outFile << this->email;
 
         outFile.close();
     }
