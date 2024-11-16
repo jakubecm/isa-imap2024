@@ -149,14 +149,11 @@ public:
                 return false;
             }
 
-            if (!certfile.empty())
+            if (!SSL_CTX_load_verify_locations(ctx, certfile.empty() ? nullptr : certfile.c_str(), certaddr.c_str()))
             {
-                if (!SSL_CTX_load_verify_locations(ctx, certfile.c_str(), certaddr.c_str()))
-                {
-                    std::cerr << "Error: Failed to load certificates." << std::endl;
-                    close(socket_fd);
-                    return false;
-                }
+                std::cerr << "Error: Failed to load certificates." << std::endl;
+                close(socket_fd);
+                return false;
             }
 
             ssl = SSL_new(ctx);
