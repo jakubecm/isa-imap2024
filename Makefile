@@ -19,3 +19,6 @@ $(TARGET): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+
+pack:
+	tar -cvf xjakub41.tar $(SRCS) *.h LICENSE Makefile README.md
