@@ -74,20 +74,6 @@ public:
         timeout_val.tv_sec = timeout;
         timeout_val.tv_usec = 0;
 
-        if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout_val, sizeof(timeout_val)) < 0)
-        {
-            std::cerr << "Error: Failed to set receive timeout." << std::endl;
-            close(socket_fd);
-            return false;
-        }
-
-        if (setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout_val, sizeof(timeout_val)) < 0)
-        {
-            std::cerr << "Error: Failed to set send timeout." << std::endl;
-            close(socket_fd);
-            return false;
-        }
-
         // Set socket to non-blocking mode for timeout handling
         fcntl(socket_fd, F_SETFL, O_NONBLOCK);
 
@@ -225,62 +211,89 @@ public:
         std::string response;
         int bytes_read;
 
+        // Set up the timeout structure
+        struct timeval timeout_val;
+        timeout_val.tv_sec = 5;
+        timeout_val.tv_usec = 0;
+
+        fd_set read_fds;
+
         while (true)
         {
             memset(buffer, 0, sizeof(buffer));
 
-            if (use_tls)
-            {
-                bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
-            }
-            else
-            {
-                bytes_read = recv(socket_fd, buffer, sizeof(buffer) - 1, 0);
-            }
+            // Prepare the file descriptor set
+            FD_ZERO(&read_fds);
+            FD_SET(socket_fd, &read_fds);
 
-            if (bytes_read > 0)
-            {
-                buffer[bytes_read] = '\0';
-                response += buffer;
+            // Wait for data to be available for reading
+            int result = select(socket_fd + 1, &read_fds, nullptr, nullptr, &timeout_val);
 
-                if (tag == "*")
+            if (result > 0)
+            {
+                // Data is available, proceed to read
+                if (use_tls)
                 {
-                    if (response.find("* ") == 0)
+                    bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+                }
+                else
+                {
+                    bytes_read = recv(socket_fd, buffer, sizeof(buffer) - 1, 0);
+                }
+
+                if (bytes_read > 0)
+                {
+                    buffer[bytes_read] = '\0';
+                    response += buffer;
+
+                    // Check if the response contains the expected tag
+                    if (tag == "*")
                     {
-                        if (response.find("\r\n") != std::string::npos)
+                        if (response.find("* ") == 0 && response.find("\r\n") != std::string::npos)
                         {
                             break; // Complete untagged response received
                         }
                     }
-                }
-                else
-                {
-                    std::string tag_with_status = tag + " ";
-                    if (response.find(tag_with_status) != std::string::npos)
+                    else
                     {
-                        break; // Complete tagged response received
+                        std::string tag_with_status = tag + " ";
+                        if (response.find(tag_with_status) != std::string::npos)
+                        {
+                            break; // Complete tagged response received
+                        }
+                    }
+                }
+                else if (bytes_read == 0)
+                {
+                    std::cerr << "Error: Connection closed by server." << std::endl;
+                    disconnect();
+                    exit(EXIT_FAILURE);
+                }
+                else if (bytes_read < 0)
+                {
+                    if (use_tls && SSL_get_error(ssl, bytes_read) == SSL_ERROR_WANT_READ)
+                    {
+                        continue; // Retry if needed
+                    }
+                    else
+                    {
+                        std::cerr << "Error reading from server." << std::endl;
+                        disconnect();
+                        exit(EXIT_FAILURE);
                     }
                 }
             }
-            else if (bytes_read == 0)
+            else if (result == 0)
             {
-                break; // Connection closed by server
+                std::cerr << "Error: Read operation timed out." << std::endl;
+                disconnect();
+                exit(EXIT_FAILURE);
             }
-            else if (bytes_read < 0)
+            else
             {
-                if (use_tls && SSL_get_error(ssl, bytes_read) == SSL_ERROR_WANT_READ)
-                {
-                    continue; // Retry if needed
-                }
-                else if (!use_tls && (errno == EAGAIN || errno == EWOULDBLOCK))
-                {
-                    continue; // Retry non-blocking operation
-                }
-                else
-                {
-                    std::cerr << "Error reading from server." << std::endl;
-                    break;
-                }
+                std::cerr << "Error: select() failed." << std::endl;
+                disconnect();
+                exit(EXIT_FAILURE);
             }
         }
 
