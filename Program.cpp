@@ -1,3 +1,10 @@
+/**
+ * @file Program.cpp
+ * @author Milan Jakubec (xjakub41)
+ * @date 2024-11-15
+ * @brief A file implementing the main program logic.
+ */
+
 #include <iostream>
 #include "ArgumentParser.h"
 #include "IMAPClient.cpp"
