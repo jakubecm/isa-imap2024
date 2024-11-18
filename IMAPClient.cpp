@@ -127,13 +127,15 @@ public:
             OpenSSL_add_all_algorithms();
             SSL_library_init();
 
-            ctx = SSL_CTX_new(SSLv23_client_method());
+            ctx = SSL_CTX_new(TLS_client_method());
             if (!ctx)
             {
                 ERR_print_errors_fp(stderr);
                 close(socket_fd);
                 return false;
             }
+
+            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
 
             if (!SSL_CTX_load_verify_locations(ctx, certfile.empty() ? nullptr : certfile.c_str(), certaddr.c_str()))
             {
